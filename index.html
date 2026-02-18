@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SimpleBudget">
+  <meta name="theme-color" content="#007AFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A84FF" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>SimpleBudget</title>
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <h1 class="app-title" id="appTitle" onclick="refreshApp()" role="button" tabindex="0">SimpleBudget</h1>
+    <span class="header-month" id="headerMonth"></span>
+  </header>
+
+  <!-- Tab Content -->
+  <main class="tab-content">
+
+    <!-- Budget Tab -->
+    <section class="tab-panel active" id="tab-budget">
+      <!-- Remaining Budget Display -->
+      <div class="budget-hero">
+        <div class="budget-label">Remaining This Month</div>
+        <div class="budget-amount" id="remainingAmount">$0</div>
+        <div class="budget-progress-bar">
+          <div class="budget-progress-fill" id="progressFill"></div>
+        </div>
+        <div class="budget-meta" id="budgetMeta"></div>
+      </div>
+
+      <!-- Quick Add Transaction -->
+      <div class="add-transaction-card" id="addTransactionCard">
+        <div class="add-transaction-header">
+          <span class="add-transaction-title">Add Expense</span>
+          <button class="toggle-income-btn" id="toggleIncomeBtn" onclick="toggleTransactionType()">Switch to Income</button>
+        </div>
+        <div class="amount-input-row">
+          <span class="currency-symbol">$</span>
+          <input
+            type="number"
+            id="amountInput"
+            class="amount-input"
+            placeholder="0.00"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            autofocus
+          >
+        </div>
+        <div class="description-row">
+          <input
+            type="text"
+            id="descriptionInput"
+            class="description-input"
+            placeholder="Description (optional)"
+            autocomplete="off"
+          >
+        </div>
+        <div class="quick-amounts">
+          <button class="quick-btn" onclick="setQuickAmount(5)">$5</button>
+          <button class="quick-btn" onclick="setQuickAmount(10)">$10</button>
+          <button class="quick-btn" onclick="setQuickAmount(20)">$20</button>
+          <button class="quick-btn" onclick="setQuickAmount(50)">$50</button>
+          <button class="quick-btn" onclick="setQuickAmount(100)">$100</button>
+        </div>
+        <button class="add-btn" id="addBtn" onclick="addTransaction()">Add Expense</button>
+      </div>
+
+      <!-- This Month's Transactions -->
+      <div class="transactions-section">
+        <div class="transactions-header">
+          <span class="transactions-title">This Month</span>
+          <span class="transactions-count" id="transactionCount"></span>
+        </div>
+        <div class="transactions-list" id="transactionsList">
+          <div class="empty-state">No transactions yet this month</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- History Tab -->
+    <section class="tab-panel" id="tab-history">
+      <div class="history-header">
+        <h2 class="section-title">Monthly History</h2>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="empty-state">No history yet</div>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section class="tab-panel" id="tab-settings">
+      <div class="settings-container">
+        <h2 class="section-title">Settings</h2>
+
+        <div class="settings-group">
+          <div class="settings-group-label">Budget</div>
+
+          <div class="settings-row">
+            <label class="settings-label" for="annualBudget">Annual Budget</label>
+            <div class="settings-input-wrap">
+              <span class="settings-currency">$</span>
+              <input
+                type="number"
+                id="annualBudget"
+                class="settings-input"
+                placeholder="0.00"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                onchange="onAnnualBudgetChange()"
+              >
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <label class="settings-label" for="monthlyGoal">Monthly Goal</label>
+            <div class="settings-input-wrap">
+              <span class="settings-currency">$</span>
+              <input
+                type="number"
+                id="monthlyGoal"
+                class="settings-input"
+                placeholder="0.00"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                oninput="onMonthlyGoalInput()"
+              >
+            </div>
+          </div>
+          <div class="settings-hint" id="suggestedMonthly"></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">Data</div>
+
+          <button class="settings-action-btn" onclick="exportData()">
+            <span class="settings-action-icon">&#8679;</span>
+            Export to JSON
+          </button>
+
+          <button class="settings-action-btn" onclick="triggerImport()">
+            <span class="settings-action-icon">&#8681;</span>
+            Import from JSON
+          </button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+
+          <button class="settings-action-btn danger" onclick="confirmClearData()">
+            <span class="settings-action-icon">&#128465;</span>
+            Clear All Data
+          </button>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">About</div>
+          <div class="settings-about">
+            <div class="settings-about-row">Version 1.0.0</div>
+            <div class="settings-about-row">Tap the title to refresh</div>
+          </div>
+        </div>
+
+        <button class="save-settings-btn" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Tab Bar -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" id="btn-budget" onclick="switchTab('budget')">
+      <span class="tab-icon">&#128176;</span>
+      <span class="tab-label">Budget</span>
+    </button>
+    <button class="tab-btn" id="btn-history" onclick="switchTab('history')">
+      <span class="tab-icon">&#128200;</span>
+      <span class="tab-label">History</span>
+    </button>
+    <button class="tab-btn" id="btn-settings" onclick="switchTab('settings')">
+      <span class="tab-icon">&#9881;&#65039;</span>
+      <span class="tab-label">Settings</span>
+    </button>
+  </nav>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="modalTitle">Confirm</div>
+      <div class="modal-message" id="modalMessage"></div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal()">Cancel</button>
+        <button class="modal-btn confirm" id="modalConfirmBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

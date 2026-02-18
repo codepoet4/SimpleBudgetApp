@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+generate_icons.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp

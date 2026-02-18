@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" fill="#007AFF"/>
+  <!-- Dollar sign circle -->
+  <circle cx="256" cy="256" r="160" fill="rgba(255,255,255,0.15)"/>
+  <!-- Dollar sign -->
+  <text x="256" y="320" font-family="-apple-system, SF Pro Display, Helvetica Neue, Arial, sans-serif"
+        font-size="240" font-weight="700" fill="white" text-anchor="middle">$</text>
+</svg>
