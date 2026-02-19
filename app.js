@@ -468,20 +468,52 @@ function saveEditTx() {
 
   const amount = parseFloat(raw.toFixed(2));
   const description = document.getElementById('editDescription').value.trim() || (editIsIncome ? 'Income' : 'Expense');
-  const date = document.getElementById('editDate').value;
+  const newDate = document.getElementById('editDate').value;
 
   const tx = data.transactions.find(t => t.id === editingTxId);
   if (!tx) return;
 
-  tx.amount = editIsIncome ? amount : -amount;
-  tx.description = description;
-  tx.date = date || tx.date;
+  // Determine if the transaction needs to move to a different month
+  const newMonthKey = newDate ? newDate.slice(0, 7) : data.currentMonth;
+  const movingToHistory = newMonthKey !== data.currentMonth;
 
-  saveData();
-  closeEditModal();
-  renderBudgetHero();
-  renderTransactionsList();
-  showToast('Transaction updated');
+  if (movingToHistory) {
+    // Remove from current month
+    data.transactions = data.transactions.filter(t => t.id !== editingTxId);
+
+    // Ensure history bucket exists for that month
+    if (!data.history[newMonthKey]) {
+      data.history[newMonthKey] = { goal: 0, transactions: [] };
+    }
+
+    // Add updated transaction to the history bucket, sorted by date descending
+    const updatedTx = {
+      id: tx.id,
+      date: newDate,
+      time: tx.time || '',
+      amount: editIsIncome ? amount : -amount,
+      description
+    };
+    data.history[newMonthKey].transactions.unshift(updatedTx);
+    data.history[newMonthKey].transactions.sort((a, b) => b.date.localeCompare(a.date));
+
+    saveData();
+    closeEditModal();
+    renderBudgetHero();
+    renderTransactionsList();
+    showToast('Transaction moved to ' + fmtMonthLabel(newMonthKey));
+  } else {
+    // Same month — update in place
+    tx.amount = editIsIncome ? amount : -amount;
+    tx.description = description;
+    if (newDate) tx.date = newDate;
+
+    saveData();
+    closeEditModal();
+    renderBudgetHero();
+    renderTransactionsList();
+    showToast('Transaction updated');
+  }
 }
 
 function deleteEditTx() {
@@ -612,12 +644,7 @@ function switchTab(name) {
 
 // ─── Refresh ──────────────────────────────────────────────
 function refreshApp() {
-  checkMonthlyReset();
-  renderAll();
-  showToast('Refreshed');
-  const title = document.getElementById('appTitle');
-  title.style.opacity = '0.5';
-  setTimeout(() => { title.style.opacity = ''; }, 200);
+  window.location.reload();
 }
 
 // ─── Render All ───────────────────────────────────────────
@@ -696,7 +723,7 @@ document.getElementById('editDescription').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('appTitle').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') refreshApp();
+  if (e.key === 'Enter' || e.key === ' ') window.location.reload();
 });
 
 // Close edit sheet on escape
