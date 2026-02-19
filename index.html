@@ -121,20 +121,8 @@
           </div>
 
           <div class="settings-row">
-            <label class="settings-label" for="monthlyGoal">Monthly Goal</label>
-            <div class="settings-input-wrap">
-              <span class="settings-currency">$</span>
-              <input
-                type="number"
-                id="monthlyGoal"
-                class="settings-input"
-                placeholder="0.00"
-                inputmode="decimal"
-                min="0"
-                step="0.01"
-                oninput="onMonthlyGoalInput()"
-              >
-            </div>
+            <span class="settings-label">This Month's Budget</span>
+            <span class="settings-computed" id="computedMonthly">—</span>
           </div>
           <div class="settings-hint" id="suggestedMonthly"></div>
         </div>
@@ -201,6 +189,54 @@
         <button class="modal-btn cancel" onclick="closeModal()">Cancel</button>
         <button class="modal-btn confirm" id="modalConfirmBtn">Confirm</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Edit Transaction Bottom Sheet -->
+  <div class="edit-overlay" id="editOverlay" onclick="closeEditModal()">
+    <div class="edit-sheet" id="editSheet" onclick="event.stopPropagation()">
+      <div class="edit-handle"></div>
+      <div class="edit-sheet-title">Edit Transaction</div>
+
+      <!-- Expense / Income toggle -->
+      <div class="edit-type-toggle">
+        <button class="edit-type-btn" id="editTypeExpense" onclick="setEditType('expense')">Expense</button>
+        <button class="edit-type-btn" id="editTypeIncome" onclick="setEditType('income')">Income</button>
+      </div>
+
+      <!-- Amount -->
+      <div class="amount-input-row edit-amount-row">
+        <span class="currency-symbol" id="editCurrencySymbol">$</span>
+        <input
+          type="number"
+          id="editAmount"
+          class="amount-input"
+          placeholder="0.00"
+          inputmode="decimal"
+          min="0"
+          step="0.01"
+        >
+      </div>
+
+      <!-- Description -->
+      <div class="description-row">
+        <input
+          type="text"
+          id="editDescription"
+          class="description-input"
+          placeholder="Description"
+          autocomplete="off"
+        >
+      </div>
+
+      <!-- Date -->
+      <div class="edit-date-row">
+        <label class="edit-date-label" for="editDate">Date</label>
+        <input type="date" id="editDate" class="edit-date-input">
+      </div>
+
+      <button class="add-btn" id="editSaveBtn" onclick="saveEditTx()">Save Changes</button>
+      <button class="edit-delete-btn" onclick="deleteEditTx()">Delete Transaction</button>
     </div>
   </div>
 
