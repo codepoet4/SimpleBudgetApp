@@ -28,7 +28,8 @@ function emptyData() {
 let data = emptyData();
 let isIncomeMode = false;
 let toastTimer = null;
-let editingTxId = null;   // id of transaction being edited
+let editingTxId = null;     // id of transaction being edited
+let editingTxMonth = null;  // null = current month, else 'YYYY-MM' history key
 let editIsIncome = false;
 
 // ─── Persistence ──────────────────────────────────────────
@@ -248,6 +249,14 @@ function renderHistory() {
     return;
   }
 
+  // Preserve which months are currently expanded before re-rendering
+  const openKeys = new Set(
+    keys.filter(k => {
+      const el = document.getElementById(`hist-${k}`);
+      return el && el.classList.contains('open');
+    })
+  );
+
   list.innerHTML = keys.map(key => {
     const month = data.history[key];
     const txs = month.transactions || [];
@@ -256,10 +265,11 @@ function renderHistory() {
     const income = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
     const net = spent - income;
     const underBudget = net <= goal;
+    const isOpen = openKeys.has(key);
 
     return `
       <div class="history-month-card">
-        <div class="history-month-header" onclick="toggleHistoryMonth('${key}', this)">
+        <div class="history-month-header${isOpen ? ' open' : ''}" onclick="toggleHistoryMonth('${key}', this)">
           <span class="history-month-name">${fmtMonthLabel(key)}</span>
           <div class="history-month-summary">
             <div class="history-month-spent ${underBudget ? 'under' : ''}">
@@ -269,7 +279,7 @@ function renderHistory() {
           </div>
           <span class="history-month-chevron">&#8250;</span>
         </div>
-        <div class="history-transactions" id="hist-${key}">
+        <div class="history-transactions${isOpen ? ' open' : ''}" id="hist-${key}">
           ${txs.length === 0
             ? '<div class="empty-state">No transactions</div>'
             : txs.map(tx => {
@@ -279,13 +289,14 @@ function renderHistory() {
                   ? `-$${fmtCurrency(Math.abs(tx.amount))}`
                   : `+$${fmtCurrency(tx.amount)}`;
                 return `
-                  <div class="transaction-item" style="cursor:default">
+                  <div class="transaction-item" onclick="openEditTx('${tx.id}', '${key}')">
                     <div class="transaction-icon ${typeClass}">${isExpense ? '&#128176;' : '&#128200;'}</div>
                     <div class="transaction-info">
                       <div class="transaction-desc">${escapeHtml(tx.description)}</div>
                       <div class="transaction-date">${fmtDate(tx.date)}</div>
                     </div>
                     <div class="transaction-amount ${typeClass}">${amtStr}</div>
+                    <button class="transaction-delete" onclick="event.stopPropagation(); confirmDeleteTx('${tx.id}', '${key}')" aria-label="Delete">&#215;</button>
                   </div>
                 `;
               }).join('')
@@ -377,11 +388,15 @@ function addTransaction() {
   showToast(isIncomeMode ? `+$${fmtCurrency(amount)} added` : `-$${fmtCurrency(amount)} recorded`);
 }
 
-function deleteTransaction(id) {
-  data.transactions = data.transactions.filter(t => t.id !== id);
+function deleteTransaction(id, monthKey = null) {
+  if (monthKey && data.history[monthKey]) {
+    data.history[monthKey].transactions =
+      data.history[monthKey].transactions.filter(t => t.id !== id);
+  } else {
+    data.transactions = data.transactions.filter(t => t.id !== id);
+  }
   saveData();
-  renderBudgetHero();
-  renderTransactionsList();
+  renderAfterEdit();
   showToast('Transaction removed');
 }
 
@@ -412,25 +427,24 @@ function setQuickAmount(n) {
 }
 
 // ─── Edit Transaction ─────────────────────────────────────
-function openEditTx(id) {
-  const tx = data.transactions.find(t => t.id === id);
+/** monthKey: null = current month, 'YYYY-MM' = history bucket */
+function openEditTx(id, monthKey = null) {
+  const tx = monthKey
+    ? (data.history[monthKey]?.transactions || []).find(t => t.id === id)
+    : data.transactions.find(t => t.id === id);
   if (!tx) return;
 
   editingTxId = id;
+  editingTxMonth = monthKey || null;
   editIsIncome = tx.amount > 0;
 
-  // Populate fields
   document.getElementById('editAmount').value = Math.abs(tx.amount);
   document.getElementById('editDescription').value = tx.description;
   document.getElementById('editDate').value = tx.date;
 
-  // Set type toggle
   setEditType(editIsIncome ? 'income' : 'expense');
 
-  // Open sheet
   document.getElementById('editOverlay').classList.add('open');
-
-  // Focus amount after animation
   setTimeout(() => document.getElementById('editAmount').select(), 100);
 }
 
@@ -466,48 +480,60 @@ function saveEditTx() {
   const description = document.getElementById('editDescription').value.trim() || (editIsIncome ? 'Income' : 'Expense');
   const newDate = document.getElementById('editDate').value;
 
-  const tx = data.transactions.find(t => t.id === editingTxId);
-  if (!tx) return;
+  // Source bucket
+  const srcMonthKey = editingTxMonth;  // null = current month
+  let srcTx;
+  if (srcMonthKey) {
+    srcTx = (data.history[srcMonthKey]?.transactions || []).find(t => t.id === editingTxId);
+  } else {
+    srcTx = data.transactions.find(t => t.id === editingTxId);
+  }
+  if (!srcTx) return;
 
-  // Determine if the transaction needs to move to a different month
-  const newMonthKey = newDate ? newDate.slice(0, 7) : data.currentMonth;
-  const movingToHistory = newMonthKey !== data.currentMonth;
+  // Destination bucket
+  const destMonthKey = newDate ? newDate.slice(0, 7) : (srcMonthKey || data.currentMonth);
+  const moving = destMonthKey !== (srcMonthKey || data.currentMonth);
 
-  if (movingToHistory) {
-    // Remove from current month
-    data.transactions = data.transactions.filter(t => t.id !== editingTxId);
+  const updatedTx = {
+    id: srcTx.id,
+    date: newDate || srcTx.date,
+    time: srcTx.time || '',
+    amount: editIsIncome ? amount : -amount,
+    description
+  };
 
-    // Ensure history bucket exists for that month
-    if (!data.history[newMonthKey]) {
-      data.history[newMonthKey] = { goal: 0, transactions: [] };
+  if (moving) {
+    // Remove from source
+    if (srcMonthKey) {
+      data.history[srcMonthKey].transactions =
+        data.history[srcMonthKey].transactions.filter(t => t.id !== editingTxId);
+    } else {
+      data.transactions = data.transactions.filter(t => t.id !== editingTxId);
     }
 
-    // Add updated transaction to the history bucket, sorted by date descending
-    const updatedTx = {
-      id: tx.id,
-      date: newDate,
-      time: tx.time || '',
-      amount: editIsIncome ? amount : -amount,
-      description
-    };
-    data.history[newMonthKey].transactions.unshift(updatedTx);
-    data.history[newMonthKey].transactions.sort((a, b) => b.date.localeCompare(a.date));
+    // Add to destination
+    if (destMonthKey === data.currentMonth) {
+      data.transactions.unshift(updatedTx);
+      data.transactions.sort((a, b) => b.date.localeCompare(a.date));
+    } else {
+      if (!data.history[destMonthKey]) {
+        data.history[destMonthKey] = { goal: 0, transactions: [] };
+      }
+      data.history[destMonthKey].transactions.unshift(updatedTx);
+      data.history[destMonthKey].transactions.sort((a, b) => b.date.localeCompare(a.date));
+    }
 
     saveData();
     closeEditModal();
-    renderBudgetHero();
-    renderTransactionsList();
-    showToast('Transaction moved to ' + fmtMonthLabel(newMonthKey));
+    renderAfterEdit();
+    showToast('Transaction moved to ' + fmtMonthLabel(destMonthKey));
   } else {
-    // Same month — update in place
-    tx.amount = editIsIncome ? amount : -amount;
-    tx.description = description;
-    if (newDate) tx.date = newDate;
+    // Same bucket — update in place
+    Object.assign(srcTx, updatedTx);
 
     saveData();
     closeEditModal();
-    renderBudgetHero();
-    renderTransactionsList();
+    renderAfterEdit();
     showToast('Transaction updated');
   }
 }
@@ -515,14 +541,22 @@ function saveEditTx() {
 function deleteEditTx() {
   if (!editingTxId) return;
   const id = editingTxId;
+  const monthKey = editingTxMonth;
   closeEditModal();
-  // Small delay so sheet animates out before confirm dialog appears
-  setTimeout(() => confirmDeleteTx(id), 320);
+  setTimeout(() => confirmDeleteTx(id, monthKey), 320);
 }
 
 function closeEditModal() {
   document.getElementById('editOverlay').classList.remove('open');
   editingTxId = null;
+  editingTxMonth = null;
+}
+
+/** Re-render everything that can change after an edit or delete. */
+function renderAfterEdit() {
+  renderBudgetHero();
+  renderTransactionsList();
+  renderHistory();
 }
 
 // ─── Settings Actions ─────────────────────────────────────
@@ -615,15 +649,17 @@ function confirmClearData() {
   );
 }
 
-// ─── Delete Transaction (from list, not edit sheet) ───────
-function confirmDeleteTx(id) {
-  const tx = data.transactions.find(t => t.id === id);
+// ─── Delete Transaction (from list × button or edit sheet) ────
+function confirmDeleteTx(id, monthKey = null) {
+  const tx = monthKey
+    ? (data.history[monthKey]?.transactions || []).find(t => t.id === id)
+    : data.transactions.find(t => t.id === id);
   if (!tx) return;
 
   showConfirmModal(
     'Delete Transaction',
     `Remove "${escapeHtml(tx.description)}" ($${fmtCurrency(Math.abs(tx.amount))})?`,
-    () => deleteTransaction(id)
+    () => deleteTransaction(id, monthKey)
   );
 }
 
