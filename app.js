@@ -101,14 +101,12 @@ function calcMonthsRemainingInYear() {
   return 12 - new Date().getMonth(); // getMonth() 0-indexed
 }
 
-/** Net spending for the current calendar year (expenses minus income).
- *  Includes all history months in this year plus the current month. */
-function calcYearToDateNet() {
+/** Net spending in PRIOR history months of the current year only.
+ *  Excludes the current month so the monthly goal stays fixed
+ *  regardless of what is spent during the month. */
+function calcPriorMonthsNetThisYear() {
   const thisYearStr = CURRENT_YEAR().toString();
-  let spent = 0;
-  let income = 0;
-
-  // Past months in current year
+  let spent = 0, income = 0;
   Object.keys(data.history).forEach(key => {
     if (key.startsWith(thisYearStr)) {
       (data.history[key].transactions || []).forEach(tx => {
@@ -117,27 +115,25 @@ function calcYearToDateNet() {
       });
     }
   });
-
-  // Current month
-  data.transactions.forEach(tx => {
-    if (tx.amount < 0) spent += Math.abs(tx.amount);
-    else income += tx.amount;
-  });
-
-  return spent - income; // positive = net spent more than earned
+  return spent - income;
 }
 
-/** How much of the annual budget is still unspent. */
-function calcRemainingAnnual() {
-  const annual = data.settings.annualBudget || 0;
-  return annual - calcYearToDateNet();
-}
-
-/** Monthly budget = remaining annual ÷ months remaining in year. */
+/** Monthly budget target, fixed at the start of the month.
+ *  = (annualBudget − prior months' net spend) ÷ months remaining.
+ *  Does NOT change as transactions are added in the current month. */
 function calcDynamicMonthlyGoal() {
   const monthsLeft = calcMonthsRemainingInYear();
   if (monthsLeft <= 0) return 0;
-  return calcRemainingAnnual() / monthsLeft;
+  const annual = data.settings.annualBudget || 0;
+  return (annual - calcPriorMonthsNetThisYear()) / monthsLeft;
+}
+
+/** Remaining annual budget — includes current month spending, used for the meta line. */
+function calcRemainingAnnual() {
+  const annual = data.settings.annualBudget || 0;
+  const priorNet = calcPriorMonthsNetThisYear();
+  const currentNet = calcMonthSpent() - calcMonthIncome();
+  return annual - priorNet - currentNet;
 }
 
 /** This month: how much is left of the dynamic monthly goal. */
@@ -374,7 +370,7 @@ function addTransaction() {
 
   amountEl.value = '';
   descEl.value = '';
-  amountEl.focus();
+  amountEl.blur();
 
   renderBudgetHero();
   renderTransactionsList();
